@@ -1,0 +1,23 @@
+#include "Game/WorldUpdateTask.h"
+#include "Game/WorldManager.h"
+#include "Game/FE/feManager.h"
+#include "port/netplay/netplay.h"
+
+/**
+ * Offset/Address/Size: 0x0 | 0x8016E644 | size: 0x48
+ */
+void WorldUpdateTask::Run(float dt)
+{
+    // PORT: in an online match the stadium (Bowser, the fence, explodables...) is gameplay, so
+    // FixedUpdateTask steps it once per game frame; stepping it here by each PC's real frame
+    // time made the two games differ.
+    if (NetplayManager::Instance().IsActive() && nlTaskManager::m_pInstance->m_CurrState == 2
+        && !PortNetplayDiag(1))
+        return;
+    if (nlTaskManager::m_pInstance->m_CurrState == 1 && FrontEnd::m_feStateCurrent != 0)
+    {
+        WorldManager::UpdateWorld(0.f);
+        return;
+    }
+    WorldManager::UpdateWorld(dt);
+}

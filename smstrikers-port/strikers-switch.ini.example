@@ -1,0 +1,185 @@
+# strikers.ini for Nintendo Switch. Rename this file to strikers.ini, then remove the # in front of
+# a setting to use it.
+
+[display]
+# Internal render resolution in handheld and docked play, as a multiple of the game's 448 lines:
+# 1.607 is 720p and 2.411 is 1080p. Unset, the game renders at the screen's own resolution.
+# res_scale_handheld = 1.607
+# res_scale_docked = 2.411
+
+# One resolution for both, used where the two above are unset.
+# res_scale = 1.607
+
+# Multisampling, 1 or 4. The shaders shipped with the game are compiled for 1, so with 4 they
+# compile again on the next launch.
+# msaa = 4
+
+# Anisotropic texture filtering: 1, 2, 4, 8 or 16.
+# aniso = 8
+
+# Frame rate cap in Hz, or 0 for unlimited.
+# fps_limit = 30
+
+# 1 waits for each refresh of the screen.
+# vsync = 1
+
+# Aspect ratio: auto, 16:9, 4:3, 21:9, any W:H, or a decimal.
+# aspect = 4:3
+
+# Shaders compiled at once, 0 to 16. 0 picks a count from the CPU cores.
+# shader_jobs = 1
+
+# 0 decodes the game's compressed textures in full. Colours then blend exactly as on the GameCube,
+# and those textures take eight times the memory.
+# cmpr_bc1 = 0
+
+# 0 stops the game reserving 96 MiB for video recording. Holding Capture saves the last 30 seconds
+# as a video when the game you launch through allows recording.
+# video_capture = 0
+
+[audio]
+# 0 turns off all sound: music, effects, the stadium reverb and the movies' own tracks.
+# audio = 0
+
+# Master level, 0 to 2.
+# audio_volume = 1.5
+
+# Report the audio mixer's state, including any underruns, in the log.
+# log_audio = 1
+
+# Record everything the game plays to a WAV file.
+# audio_dump = sdmc:/switch/strikers/strikers.wav
+
+[input]
+# To shoot with A and pass with B, as in Nintendo's release on Switch Online, remove the # from
+# both lines below. Without them, B shoots and A passes.
+# pad_a is GameCube A (shoot) and pad_b is GameCube B (pass). Each value is a button's position:
+# a is the bottom button (labelled B), b the right (A), x the left (Y) and y the top (X). A
+# sideways Joy-Con counts positions as you hold it. pad_x and pad_y take the same values.
+# pad_a = b
+# pad_b = a
+
+# The remaining GameCube buttons, shown with their defaults on a Pro Controller or Joy-Con pair.
+# Values can also be back (-), leftshoulder (L), leftstick or rightstick (the stick presses). Only
+# pad_l and pad_r take lefttrigger (ZL) and righttrigger (ZR). These apply to every controller. A
+# sideways Joy-Con otherwise uses its stick press for Z and SL and SR for L and R.
+# pad_x = y
+# pad_y = x
+# pad_z = rightshoulder
+# pad_start = start
+# pad_l = lefttrigger
+# pad_r = righttrigger
+# pad_dpad_up = dpup
+# pad_dpad_down = dpdown
+# pad_dpad_left = dpleft
+# pad_dpad_right = dpright
+
+# 1 swaps the left and right sticks.
+# pad_swap_sticks = 1
+
+# Stick deadzone, 0.0 to 0.9, as a fraction of the stick's travel.
+# pad_deadzone = 0.24
+
+# 0 turns rumble off on every controller.
+# pad_rumble = 0
+
+# Rumble strength, 0 to 100. The default is 50.
+# pad_rumble_strength = 50
+
+# Button art: auto follows the last controller used. gamecube, xbox, playstation, nintendo,
+# steamdeck, generic or keyboard shows that family's buttons instead.
+# button_prompts = gamecube
+
+# Print the effective controls to the log at startup, and each controller's state as it changes.
+# Any value turns it on.
+# probe_pad = 1
+
+# A USB keyboard plays as player 1; 0 turns it off. Keys are SDL scancode names: "A", "Return",
+# "Space", "Left Shift", "F1", "Keypad 0". The defaults:
+# keyboard = 0
+# key_a = X
+# key_b = Z
+# key_x = C
+# key_y = V
+# key_z = Space
+# key_start = Return
+# key_l = Q
+# key_r = E
+# key_dpad_up = Up
+# key_dpad_down = Down
+# key_dpad_left = Left
+# key_dpad_right = Right
+# key_stick_up = W
+# key_stick_down = S
+# key_stick_left = A
+# key_stick_right = D
+# key_cstick_up = I
+# key_cstick_down = K
+# key_cstick_left = J
+# key_cstick_right = L
+
+[paths]
+# The disc image, when it is not in this folder.
+# data = sdmc:/games/Super Mario Strikers.iso
+
+# 1 copies the disc image into memory in the background after launch, so play never waits on the
+# SD card.
+# disc_in_ram = 1
+
+# Menu language: english, german, french, spanish or italian, and japanese on the Japanese disc.
+# Unset, the game uses the console's language if the disc has it. The American disc is English only.
+# language = german
+
+# Texture packs load from mods/textures/ here and from user/mods/textures/. A folder named here
+# loads too and wins over both; 0 turns texture packs off.
+# textures = 0
+
+# One pack out of the textures folders, by its folder name. Unset loads every pack.
+# texture_pack = hd pitch
+
+# Memory for loaded texture pack images, in MB. Past it the least recently drawn is dropped and
+# loaded again when next needed. The default is 512.
+# texture_cache_mb = 256
+
+# Save each texture the game loads as a PNG named for a texture pack, in a folder per disc file.
+# 1 saves to user/texture_dumps/; a path saves there.
+# texture_dump = 1
+
+# 1 writes strikers-log.txt in this folder. Attach it to a bug report.
+# log = 1
+
+[game]
+# Which disc the data came from, when the data cannot say: usa, europe or japan, or a disc id
+# (G4QE01, G4QP01, G4QJ01).
+# region = europe
+
+# Every stadium, team and cup mode available.
+# unlock_all = 1
+
+[debug]
+# Force a stadium instead of letting the demo pick at random: mario_stadium, peach_toad, dk_daisy,
+# wario_stadium, yoshi_stadium, super_stadium or forbidden_dome, or 0 to 6.
+# force_stadium = mario_stadium
+
+# Set the teams and sidekicks: daisy, donkeykong, luigi, mario, peach, waluigi, wario or yoshi,
+# and toad, koopa, hammerbro or birdo.
+# team1 = mario
+# team2 = luigi
+# sidekick1 = toad
+# sidekick2 = koopa
+
+# Pin the random seed, so a run is reproducible.
+# seed = 3
+
+# 1 skips the game's movies.
+# no_movies = 1
+
+# Extra reports in the log. Any value turns one on; remove the line to turn it off.
+# Every front-end screen entered and package loaded:
+# log_scenes = 1
+# Match state, once a second:
+# log_match = 1
+# The cutscene player and presentation clock:
+# log_nis = 1
+# Every bundle file opened:
+# log_bundles = 1

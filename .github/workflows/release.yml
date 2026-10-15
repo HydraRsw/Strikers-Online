@@ -1,0 +1,318 @@
+name: release
+
+# Build and package every target before drafting a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Build one platform, or all; only all can create a release'
+        type: choice
+        options: [all, macos-arm64, linux-x86_64, linux-arm64, windows-x86_64, switch]
+        default: all
+      dry_run:
+        description: 'Build and upload artifacts, but do not create a release'
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.platform || 'all' }}
+  cancel-in-progress: false
+
+jobs:
+  # A job-level if is evaluated before the matrix exists, so the platform is picked here.
+  targets:
+    if: inputs.platform != 'switch'
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        env:
+          PLATFORM: ${{ inputs.platform || 'all' }}
+          TARGETS: |
+            [
+              {"name": "macos-arm64", "runner": "macos-15", "archive": "tar.gz"},
+              {"name": "linux-x86_64", "runner": "ubuntu-24.04", "archive": "tar.gz"},
+              {"name": "linux-arm64", "runner": "ubuntu-24.04-arm", "archive": "tar.gz"},
+              {"name": "windows-x86_64", "runner": "windows-2022", "archive": "zip"}
+            ]
+        run: |
+          matrix=$(jq -c --arg p "$PLATFORM" '{include: map(select($p == "all" or .name == $p))}' <<< "$TARGETS")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (${{ matrix.name }})
+    needs: targets
+    runs-on: ${{ matrix.runner }}
+    env:
+      STRIKERS_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.targets.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: choco install -y ninja llvm
+
+      - name: Install MSYS2 for ffmpeg's configure (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: false
+          install: make diffutils tar xz curl
+          path-type: inherit
+
+      - name: Build ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        working-directory: smstrikers-port
+        shell: msys2 {0}
+        run: ./tools/build-ffmpeg.sh
+
+      - name: Install toolchain (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      # Homebrew's ffmpeg is GPL and pulls in x264 and x265; this is the LGPL THP-only decoder the other platforms ship.
+      - name: Build ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        working-directory: smstrikers-port
+        run: ./tools/build-ffmpeg.sh
+
+      - name: Install Qt (settings app)
+        if: runner.os != 'Linux'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          cache: true
+
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qt6-base-dev
+      - name: Point package.sh at the distro Qt (Linux)
+        if: runner.os == 'Linux'
+        run: echo "QT_PREFIX=/usr" >> "$GITHUB_ENV"
+      - name: Set the glibc ceiling (Linux)
+        if: runner.os == 'Linux'
+        run: echo "STRIKERS_MAX_GLIBC=2.35" >> "$GITHUB_ENV"
+
+      - name: Tool tests
+        working-directory: smstrikers-port
+        shell: bash
+        run: |
+          python3 tools/test_genstubs.py
+          python3 tools/test_extract_disc.py
+
+      - name: Configure
+        if: runner.os != 'Linux'
+        working-directory: smstrikers-port
+        shell: bash
+        run: ./tools/configure.sh build-aur Release
+
+      - name: Build
+        if: runner.os != 'Linux'
+        working-directory: smstrikers-port
+        shell: bash
+        run: ./tools/rebuild.sh build-aur
+
+      - name: Start the Ubuntu 22.04 container (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --name build -e STRIKERS_VERSION -e DEBIAN_FRONTEND=noninteractive \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE/smstrikers-port" \
+            ubuntu:22.04 sleep infinity
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build ./tools/install-linux-deps.sh
+
+      - name: Build ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build ./tools/build-ffmpeg.sh
+
+      - name: Configure (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build ./tools/configure.sh build-aur Release
+
+      - name: Build Dawn (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build cmake --build build-aur --target webgpu_dawn -j10
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build ./tools/rebuild.sh build-aur
+
+      - name: Return the tree to the runner user (Linux)
+        if: runner.os == 'Linux'
+        run: docker exec build chown -R "$(id -u):$(id -g)" .
+
+      - name: Package
+        working-directory: smstrikers-port
+        shell: bash
+        run: ./tools/package.sh build-aur "strikers-${{ matrix.name }}" "${{ matrix.archive }}"
+
+      # Unarchived, so a downloaded artifact is the archive itself rather than a zip holding it.
+      - uses: actions/upload-artifact@v7
+        with:
+          path: smstrikers-port/dist/strikers-${{ matrix.name }}.${{ matrix.archive }}
+          archive: false
+          if-no-files-found: error
+
+  switch:
+    name: build (switch)
+    if: (inputs.platform || 'all') == 'all' || inputs.platform == 'switch'
+    # mesa-switch compiles NVK's Rust for the host architecture.
+    runs-on: ubuntu-24.04-arm
+    env:
+      STRIKERS_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+    defaults:
+      run:
+        working-directory: smstrikers-port
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - name: Read Switch dependency versions
+        id: mesa
+        run: |
+          . ./tools/switch/deps.env
+          echo "ref=$MESA_REF" >> "$GITHUB_OUTPUT"
+          echo "image=$DEVKITPRO_IMAGE" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        id: nvk
+        with:
+          path: smstrikers-port/extern/nvk-switch
+          key: nvk-switch-${{ steps.mesa.outputs.ref }}-${{ hashFiles('smstrikers-port/tools/switch/build-nvk.sh', 'smstrikers-port/tools/switch/package-nvk.sh', 'smstrikers-port/tools/switch/deps.env') }}
+
+      - name: Build the Vulkan driver
+        if: steps.nvk.outputs.cache-hit != 'true'
+        run: |
+          ./tools/switch/build-nvk.sh
+          docker rm -f mesa-switch-build
+          docker image prune -af
+          sudo rm -rf extern/mesa-switch
+
+      # Its own step, so a built driver is cached even if a later step fails.
+      - uses: actions/cache/save@v4
+        if: steps.nvk.outputs.cache-hit != 'true'
+        with:
+          path: smstrikers-port/extern/nvk-switch
+          key: ${{ steps.nvk.outputs.cache-primary-key }}
+
+      - name: Start the devkitPro container
+        run: |
+          docker run -d --name build -e STRIKERS_VERSION -e DEBIAN_FRONTEND=noninteractive \
+            -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" -w "$GITHUB_WORKSPACE/smstrikers-port" \
+            "${{ steps.mesa.outputs.image }}" sleep infinity
+
+      # The host nm cannot read AArch64 objects; llvm-nm can. The pinned image already has the Switch portlibs.
+      - name: Install host tools
+        run: |
+          docker exec build sh -c 'apt-get update && apt-get install -y --no-install-recommends \
+            cmake ninja-build python3 git curl xz-utils zip make llvm'
+
+      - name: Fetch Dawn
+        run: docker exec build ./tools/fetch-switch-deps.sh
+
+      - name: Build ffmpeg
+        run: docker exec build ./tools/build-ffmpeg.sh --switch
+
+      - name: Configure
+        run: |
+          docker exec -e CMAKE_TOOLCHAIN_FILE="$PWD/tools/toolchain-switch.cmake" build \
+            ./tools/configure.sh build-switch Release
+
+      - name: Build
+        run: docker exec build ./tools/switch/rebuild.sh build-switch
+
+      - name: Package
+        run: docker exec build ./tools/switch/package.sh build-switch strikers-switch
+
+      - name: Return the tree to the runner user
+        run: docker exec build chown -R "$(id -u):$(id -g)" .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          path: smstrikers-port/dist/strikers-switch.zip
+          archive: false
+          if-no-files-found: error
+
+  release:
+    name: draft release
+    needs: [build, switch]
+    if: >-
+      success() && startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name != 'workflow_dispatch' || (!inputs.dry_run && inputs.platform == 'all'))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # skip-decompress, or the Windows zip is served as application/zip and unpacked loose.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: strikers-*
+          path: artifacts
+          merge-multiple: true
+          skip-decompress: true
+
+      - uses: actions/checkout@v4
+        with:
+          path: source
+          sparse-checkout: smstrikers-port/tools/build-ffmpeg.sh
+          sparse-checkout-cone-mode: false
+
+      # The LGPL source of the FFmpeg linked into every archive, at the version build-ffmpeg.sh pins.
+      - name: Attach FFmpeg's source
+        run: |
+          set -eu
+          script=source/smstrikers-port/tools/build-ffmpeg.sh
+          version=$(sed -n 's/^VERSION=//p' "$script")
+          sha=$(sed -n 's/^WANT_SHA="\([0-9a-f]*\)"$/\1/p' "$script")
+          test -n "$version" && test -n "$sha"
+          curl -fsSL --retry 3 -o "artifacts/ffmpeg-$version.tar.xz" "https://ffmpeg.org/releases/ffmpeg-$version.tar.xz"
+          echo "$sha  artifacts/ffmpeg-$version.tar.xz" | sha256sum -c -
+
+      - name: Verify archives and write checksums
+        working-directory: artifacts
+        run: |
+          set -eu
+          for archive in strikers-macos-arm64.tar.gz strikers-linux-x86_64.tar.gz strikers-linux-arm64.tar.gz strikers-windows-x86_64.zip strikers-switch.zip; do
+            test -s "$archive"
+          done
+          sha256sum *.tar.gz *.zip *.tar.xz > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          fail_on_unmatched_files: true
+          draft: true
+          generate_release_notes: true
+          body: |
+            Built from ${{ github.sha }}.
+
+            Disc data is not bundled. Unpack an archive, put the extracted
+            disc's `files/` directory beside the executable, and run it.
+            The README and the wiki have the full instructions.
+
+            These are experimental builds for macOS arm64, Linux x86-64,
+            Linux arm64, Windows x86-64 and the Nintendo Switch.
+            The Switch zip unpacks onto the root of the SD card; put the disc
+            image beside switch/strikers/strikers.nro and start it from the
+            homebrew menu in title mode (hold R while launching a game), not
+            from the album.
+            Linux builds need glibc 2.35 or newer: Ubuntu 22.04, Debian 12,
+            Fedora 36, current SteamOS, or anything later.
+            The ffmpeg tarball is the LGPL source of the movie decoder
+            linked into every build.
+            Verify downloads against SHA256SUMS. Test the packaged builds
+            before publishing this draft.

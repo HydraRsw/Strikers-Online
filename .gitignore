@@ -1,0 +1,46 @@
+smstrikers-port/build*/
+
+smstrikers-port/data/
+*.iso
+smstrikers-port/extern/ffmpeg-windows-x86_64/
+smstrikers-port/extern/ffmpeg-static/
+smstrikers-port/extern/ffmpeg-switch/
+smstrikers-port/extern/dawn-switch/
+smstrikers-port/extern/nvk-switch/
+smstrikers-port/extern/nvk-mesa-switch/
+smstrikers-port/extern/mesa-switch/
+smstrikers-port/assets/switch/romfs/*
+!smstrikers-port/assets/switch/romfs/initial_pipeline_cache.db
+!smstrikers-port/assets/switch/romfs/initial_dawn_cache.db
+!smstrikers-port/assets/switch/romfs/initial_dawn_cache.db.stamp
+
+/dist/
+smstrikers-port/dist/
+
+.DS_Store
+*.ppm
+*.pyc
+__pycache__/
+
+.vscode/
+
+
+
+*.log
+
+# --- Strikers Online ---
+# Build folder next to smstrikers-port, and the release this repository's scripts make.
+/build/
+/release/
+# What the game writes beside itself while playing.
+strikers-log*.txt
+desync-*.bin
+desync-*-fields.txt
+syncdump-*.bin
+syncdump-*.txt
+strikers-prefs.ini
+imgui.ini
+*.pdb
+# Third-party tools you download yourself.
+playit.exe
+server/playit.exe

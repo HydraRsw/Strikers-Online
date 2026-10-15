@@ -1,0 +1,62 @@
+SUPER MARIO STRIKERS ONLINE
+===========================
+
+You need your own copy of Super Mario Strikers (a disc image: .iso, .gcm,
+.ciso or .gcz). No game files come with this download.
+
+
+1. FIRST TIME
+-------------
+  a) Open "Mario Strikers Settings.exe". On the Game Files tab, choose your
+     disc image, then press Save.
+     (Or open strikers.ini in Notepad and set the "data =" line, using /
+     instead of \  Example:  data = C:/Games/Super Mario Strikers.iso )
+
+  b) Open strikers.ini in Notepad. In the [netplay] section, put the server
+     address you were given on the "server =" line:
+         server = name.ply.gg:12345
+     (Running your own server? See part 3.)
+
+  c) Start strikers.exe and go past the title screen to the main menu.
+
+
+2. PLAYING ONLINE
+-----------------
+  Press F1 to open the menu, then Play Online.
+
+  - One player presses "Create a room" and sends the 4-digit code.
+  - The other player types the code and presses "Join".
+  - The team screen opens by itself. Pick a captain and sidekicks. The
+    player who created the room picks the stadium and the match rules.
+    Both press READY! and the match starts.
+
+  Goals, pauses and replays stop both games; a countdown starts them again.
+  Press A or B to skip a replay (it skips for both of you).
+
+  F1 also has Controls (choose your controller, change buttons), Sound and
+  Display. F11 switches fullscreen.
+
+
+3. RUNNING YOUR OWN SERVER (optional)
+-------------------------------------
+  Only one person needs to do this. Their PC must be on while people play.
+
+  a) Download playit for Windows from https://playit.gg/download and put
+     playit.exe in this folder.
+  b) Double-click HOST-SERVER.bat.
+  c) First time: open the https://playit.gg/claim/... link the Playit window
+     shows, make a free account, and add a tunnel:
+         Type: Custom (UDP)      Local port: 7200
+  d) Playit shows your address (name.ply.gg:12345). Put it on the
+     "server =" line of your strikers.ini, and give it to your friends.
+
+  Keep both windows open while people play.
+
+
+4. IF SOMETHING GOES WRONG
+--------------------------
+  - Both players need this same release. Different versions do not connect.
+  - "Could not connect": check the server address, and that the person
+    running the server has HOST-SERVER.bat and Playit open.
+  - Crashes and other problems: send strikers-log.txt from this folder
+    (before starting the game again) with your report.
