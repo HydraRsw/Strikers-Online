@@ -874,6 +874,19 @@ extern "C" int PortMatchExists(void)
             && g_pGame->m_pGameClock != NULL) ? 1 : 0;
 }
 
+// PORT: has the loaded match finished (full time, or a golden goal)? For the online flow,
+// which sends both players back to team select instead of the game's own Rematch.
+extern "C" int PortMatchIsOver(int* scoreHome, int* scoreAway)
+{
+    if (PortMatchExists() == 0 || g_pGame->m_eGameState != GS_END_GAME)
+        return 0;
+    if (scoreHome != NULL)
+        *scoreHome = g_pTeams[0]->m_nScore;
+    if (scoreAway != NULL)
+        *scoreAway = g_pTeams[1]->m_nScore;
+    return 1;
+}
+
 // PORT: outcome of the last PDBG_START_MATCH, for the online VS screen.
 // 1 started, -1 not on the title/main menu, -2 a match already exists,
 // -3 the task manager is not in the front-end state, -4 no GameInfoManager.

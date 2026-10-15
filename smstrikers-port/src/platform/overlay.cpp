@@ -2807,6 +2807,7 @@ struct OnlineStart
     u64  failUntilUs = 0;
     bool returnToFE = false;   // opponent aborted while we may already be in the match
     u64  returnSinceUs = 0;
+    u8   returnMatchId = 0;    // the match that abort was about
 };
 OnlineStart s_onlineStart;
 
@@ -2837,8 +2838,14 @@ void online_start_tick()
 
     if (mgr.GetMatchId() != st.lastMatchId)
     {
-        // A new match was just started (by our host button or the host's packet).
+        // A new match was just started (by our host button or the host's packet). Match 0 is
+        // a session that has just connected, with no match yet: nothing to load.
         st.lastMatchId = mgr.GetMatchId();
+        if (st.lastMatchId == 0)
+        {
+            st.loading = false;
+            return;
+        }
         st.loading = true;
         st.sinceUs = now;
         st.failText[0] = '\0';
@@ -2853,11 +2860,16 @@ void online_start_tick()
         online_fail(msg);
         st.returnToFE = true;
         st.returnSinceUs = now;
+        st.returnMatchId = mgr.GetMatchId();
     }
 
     if (st.returnToFE)
     {
-        if (PortMatchExists())
+        if (mgr.GetMatchId() != st.returnMatchId)
+        {
+            st.returnToFE = false;   // a newer match started since: that one is fine
+        }
+        else if (PortMatchExists())
         {
             cmd(PDBG_RETURN_TO_FE);
             st.returnToFE = false;
@@ -2902,6 +2914,76 @@ void online_start_tick()
 bool online_match_loading()
 {
     return s_onlineStart.loading;
+}
+
+// ---------------------------------------------------------------------------
+// The end of an online match.  The game's own winner screen offers Rematch,
+// which restarts the match on this PC only and leaves the other one behind.
+// Online, both games show the result for a few seconds and go back to team
+// select instead, where the same picks are still chosen: READY again plays
+// the rematch, from a fresh start both games share.
+// ---------------------------------------------------------------------------
+extern "C" int PortMatchIsOver(int* scoreHome, int* scoreAway);   // Game.cpp
+
+bool s_rematchHint = false;   // shown on team select after a match
+
+void online_end_tick()
+{
+    static u64 s_overSinceUs = 0;
+    static bool s_inputBlocked = false;
+    static bool s_returned = false;
+    const u64 kShowUs = 7000000ULL;
+
+    NetplayManager& mgr = NetplayManager::Instance();
+    int home = 0, away = 0;
+    const bool over = mgr.IsActive() && PortMatchIsOver(&home, &away) && s_session.taskState == 1;
+    if (!over)
+    {
+        if (s_inputBlocked)
+        {
+            PADBlockInput(false);
+            s_inputBlocked = false;
+        }
+        s_overSinceUs = 0;
+        s_returned = false;
+        if (PortMatchExists() && s_session.taskState == 2)
+            s_rematchHint = false;   // the next match is on
+        return;
+    }
+
+    const u64 now = NetplayGetTimeUs();
+    if (s_overSinceUs == 0)
+    {
+        s_overSinceUs = now;
+        PADBlockInput(true);   // the winner screen's own menu stays out of it
+        s_inputBlocked = true;
+        std::fprintf(stderr, "[netplay] match over (%d - %d): back to team select shortly\n", home, away);
+    }
+    const u64 elapsed = now - s_overSinceUs;
+    if (elapsed >= kShowUs && !s_returned)
+    {
+        s_returned = true;
+        s_rematchHint = true;
+        PADBlockInput(false);
+        s_inputBlocked = false;
+        cmd(PDBG_RETURN_TO_FE);
+        return;
+    }
+    if (s_returned)
+        return;
+
+    if (banner_begin("##online_full_time", 0.30f, ui::kLime))
+    {
+        big_text(g_fontTitle, 1.8f, ui::kLime, "FULL TIME", true);
+        char score[32];
+        std::snprintf(score, sizeof score, "%d  -  %d", home, away);
+        big_text(g_fontHuge, 3.0f, ui::kText, score, true);
+        const int left = (int)((kShowUs - elapsed + 999999ULL) / 1000000ULL);
+        char line[128];
+        std::snprintf(line, sizeof line, "Back to team select in %d s. Press READY there for a rematch.", left);
+        centered_text(ui::kDim, line);
+    }
+    ImGui::End();
 }
 
 
@@ -3310,6 +3392,9 @@ void draw_online_vs()
     {
         ImGui::TextColored(kGrey, "waiting for the host's rules...");
     }
+
+    if (s_rematchHint)
+        ImGui::TextColored(ui::kLime, "Rematch? Your teams are still picked: press READY!");
 
     ImGui::Spacing();
     const bool sameCaptain = haveRemote && r.captain == c.captain;
@@ -4167,6 +4252,7 @@ void PortOverlayDraw(void)
 
     autotest_tick();
     online_start_tick();
+    online_end_tick();
     if (s_ctl.slot >= 0 && !s_menuOpen)
         controls_end_capture("");   // menu closed while waiting for a button
 

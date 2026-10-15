@@ -1072,7 +1072,8 @@ void NetplayManager::ReceivePackets()
         {
             if (n < static_cast<int>(sizeof(NetplayMatchAbortPacket)))
                 break;
-            if (hdr->matchId != m_matchId || m_remoteAbort)
+            /* Match 0 is "no match yet": nothing was started, so nothing to abort. */
+            if (hdr->matchId != m_matchId || m_remoteAbort || m_matchId == 0)
                 break;
             NetplayMatchAbortPacket* ap = reinterpret_cast<NetplayMatchAbortPacket*>(buf);
             m_remoteAbort       = true;
@@ -1297,7 +1298,10 @@ void NetplayManager::SendQualityReport()
        delay), and that input is half a round trip old. */
     if (m_lastSimFrame >= 0 && m_remoteLatest >= 0)
     {
-        float halfRttFrames = (m_pingUs / 1000.0f) / kFrameMs * 0.5f;
+        /* In slow motion (Super Strikes) game frames come slower than every 20 ms. */
+        float scale = FixedUpdateTask::mTimeScale;
+        scale = scale < 0.01f ? 0.01f : (scale > 1.0f ? 1.0f : scale);
+        float halfRttFrames = (m_pingUs / 1000.0f) / (kFrameMs / scale) * 0.5f;
         float remoteNow = static_cast<float>(m_remoteLatest - m_inputDelay) + halfRttFrames;
         float adv = remoteNow - static_cast<float>(m_lastSimFrame);
         m_localFrameAdvantage = static_cast<int>(adv >= 0.0f ? adv + 0.5f : adv - 0.5f);
@@ -2343,8 +2347,26 @@ bool NetplayManager::PreUpdate(u32 simFrame)
         return false;
     }
 
-    /* 3. Time sync: if we are ahead of the peer, skip a tick now and then. */
-    if (frame - m_lastSyncCheckFrame >= kSyncCheckInterval)
+    /* 3. Time sync: if we are ahead of the peer, skip a tick now and then.
+          Not in slow motion (a Super Strike): a game frame then lasts up to
+          ten times longer, so one skipped frame is a visible freeze, and the
+          two games' slow motion ends at slightly different moments anyway
+          (the camera that ends it runs per rendered frame). */
+    {
+        static float s_loggedScale = 1.0f;
+        const float scale = FixedUpdateTask::mTimeScale;
+        if ((scale < 0.99f) != (s_loggedScale < 0.99f))
+            fprintf(stderr, "[netplay] slow motion %s at frame %d (x%.3f)\n",
+                    scale < 0.99f ? "starts" : "ends", frame, scale);
+        s_loggedScale = scale;
+    }
+    if (FixedUpdateTask::mTimeScale < 0.99f)
+    {
+        m_framesToStall = 0;
+        m_advantageAvg = 0.0f;
+        m_lastSyncCheckFrame = frame;
+    }
+    else if (frame - m_lastSyncCheckFrame >= kSyncCheckInterval)
     {
         m_lastSyncCheckFrame = frame;
         float recommended = (m_remoteFrameAdvantage - m_localFrameAdvantage) * 0.5f;
@@ -2550,6 +2572,12 @@ extern "C" int PortNetplayInterceptStateChange(unsigned int currState, unsigned 
 extern "C" int PortNetplayOpponentWaiting(void)
 {
     return NetplayManager::Instance().IsOpponentWaiting() ? 1 : 0;
+}
+
+/* Game code that must behave the same on both PCs while a session runs. */
+extern "C" int PortNetplayRunning(void)
+{
+    return NetplayManager::Instance().IsActive() ? 1 : 0;
 }
 
 extern "C" int PortNetplaySkipWanted(void)

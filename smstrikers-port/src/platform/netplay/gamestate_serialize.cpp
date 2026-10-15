@@ -39,6 +39,10 @@
 #include "Game/Sys/clock.h"
 #include "Game/Render/NetMesh.h"
 #include "Game/Formation.h"
+#include "Game/Render/Bowser.h"
+#include "Game/Render/ChainChomp.h"
+#include "Game/Render/NPCManager.h"
+#include "Game/BasicStadium.h"
 #include "Game/FormationDefines.h"
 #include "NL/nlMemory.h"
 #include <new>
@@ -117,7 +121,7 @@ extern float g_fSimulationTick;
 /*  State version — bump when adding/removing fields.                        */
 /* ======================================================================== */
 
-#define SAVESTATE_VERSION 11   /* 11: every character's whole animation tree,  2: AI thoughts queue, 3: every running clock, 4: ball owner first, 5: fielder desire vars, 6: clocks by identity, 7: stick camera angles, 8: player update order, 9: goal nets and ball physics flags, 10: team formations */
+#define SAVESTATE_VERSION 12   /* 12: Bowser and the Chain Chomp, 11: every character's whole animation tree,  2: AI thoughts queue, 3: every running clock, 4: ball owner first, 5: fielder desire vars, 6: clocks by identity, 7: stick camera angles, 8: player update order, 9: goal nets and ball physics flags, 10: team formations */
 #define SAVESTATE_MAGIC   0x53535356u  /* "SSSV" = Strikers SaveState Version */
 
 /* ======================================================================== */
@@ -172,8 +176,16 @@ static void SaveODEBody(SaveStateBuffer* buf, dBodyID body)
 static void LoadODEBody(SaveStateBuffer* buf, dBodyID body)
 {
     u8 hasBody = buf->ReadU8();
-    if (!hasBody || !body)
+    if (!hasBody)
         return;
+    if (!body)
+    {
+        /* Saved with a body, none here: read past it so what follows stays in step. */
+        for (int i = 0; i < 19; i++)
+            (void)buf->ReadF32();
+        (void)buf->ReadU8();
+        return;
+    }
 
     dReal pos[3], quat[4], lvel[3], avel[3], force[3], torque[3];
 
@@ -1295,6 +1307,147 @@ const char* NetplayStateFieldAt(size_t off, size_t* fieldStart)
     return GetTrackedFieldAt(off, fieldStart);
 }
 
+/* ======================================================================== */
+/*  Bowser and the Chain Chomp                                               */
+/* ======================================================================== */
+
+/* PORT: the stadium's two monsters act on the players and the ball, so a game copied over from the
+   other PC (a desync repair, or the state both resume from) must have them where that PC had them. */
+static NPCManager* CurrentNPCs()
+{
+    BasicStadium* stadium = BasicStadium::GetCurrentStadium();
+    return stadium != nullptr ? stadium->mpNPCManager : nullptr;
+}
+
+static void SaveMovableNPC(SaveStateBuffer* buf, SkinAnimatedMovableNPC* npc)
+{
+    buf->WriteBytes(&npc->mWorldMatrix, sizeof(npc->mWorldMatrix));
+    buf->WriteU8(npc->mbIsVisible ? 1 : 0);
+    SavePoseNode(buf, npc->mpPoseTree);
+    buf->WriteBytes(&npc->mv3Position, sizeof(nlVector3));
+    buf->WriteBytes(&npc->mv3Velocity, sizeof(nlVector3));
+    buf->WriteU16(npc->maFacingDirection);
+    buf->WriteU16(npc->maDesiredFacingDirection);
+    buf->WriteF32(npc->mfDesiredSpeed);
+    PhysicsObject* phys = reinterpret_cast<PhysicsObject*>(npc->mpPhysObj);
+    buf->WriteU8(phys != nullptr ? 1 : 0);
+    if (phys != nullptr)
+    {
+        SaveODEBody(buf, phys->m_bodyID);
+        buf->WriteBytes(&phys->m_position, sizeof(nlVector3));
+        buf->WriteBytes(&phys->m_linearVelocity, sizeof(nlVector3));
+    }
+}
+
+static void LoadMovableNPC(SaveStateBuffer* buf, SkinAnimatedMovableNPC* npc)
+{
+    buf->ReadBytes(&npc->mWorldMatrix, sizeof(npc->mWorldMatrix));
+    npc->mbIsVisible = buf->ReadU8() != 0;
+    LoadPoseNode(buf, &npc->mpPoseTree);   /* applied when the shapes match */
+    buf->ReadBytes(&npc->mv3Position, sizeof(nlVector3));
+    buf->ReadBytes(&npc->mv3Velocity, sizeof(nlVector3));
+    npc->maFacingDirection = buf->ReadU16();
+    npc->maDesiredFacingDirection = buf->ReadU16();
+    npc->mfDesiredSpeed = buf->ReadF32();
+    PhysicsObject* phys = reinterpret_cast<PhysicsObject*>(npc->mpPhysObj);
+    if (buf->ReadU8() != 0)
+    {
+        if (phys != nullptr)
+        {
+            LoadODEBody(buf, phys->m_bodyID);
+            buf->ReadBytes(&phys->m_position, sizeof(nlVector3));
+            buf->ReadBytes(&phys->m_linearVelocity, sizeof(nlVector3));
+        }
+        else
+        {
+            /* Nothing to put it in: read past it. */
+            LoadODEBody(buf, nullptr);
+            nlVector3 tmp;
+            buf->ReadBytes(&tmp, sizeof tmp);
+            buf->ReadBytes(&tmp, sizeof tmp);
+        }
+    }
+}
+
+static void SaveNPCs(SaveStateBuffer* buf)
+{
+    NPCManager* npcs = CurrentNPCs();
+    Bowser* bowser = npcs != nullptr ? npcs->mpBowser : nullptr;
+    ChainChomp* chomp = npcs != nullptr ? npcs->mpChainChomp : nullptr;
+    buf->WriteF32(Bowser::mfYAxisTilt);
+
+    buf->WriteU8(bowser != nullptr ? 1 : 0);
+    if (bowser != nullptr)
+    {
+        SaveMovableNPC(buf, bowser);
+        buf->WriteS8(PlayerToIndex(reinterpret_cast<cPlayer*>(bowser->mpTarget)));
+        buf->WriteBytes(&bowser->mv3TargetPos, sizeof(nlVector3));
+        buf->WriteS32(static_cast<s32>(bowser->meBowserState));
+        buf->WriteBytes(&bowser->mtStateTimer, sizeof(Timer));
+        buf->WriteBytes(&bowser->mtActiveTimer, sizeof(Timer));
+        buf->WriteS32(bowser->mAnimID);
+        buf->WriteU8(bowser->mbDoTilt ? 1 : 0);
+        buf->WriteS32(static_cast<s32>(bowser->mAttackType));
+        buf->WriteS32(bowser->mStompStage);
+        buf->WriteU8(bowser->mbFirstTime ? 1 : 0);
+        buf->WriteU8(bowser->mbAlive ? 1 : 0);
+        buf->WriteU8(bowser->mbResetPending ? 1 : 0);
+    }
+
+    buf->WriteU8(chomp != nullptr ? 1 : 0);
+    if (chomp != nullptr)
+    {
+        SaveMovableNPC(buf, chomp);
+        buf->WriteS8(PlayerToIndex(reinterpret_cast<cPlayer*>(chomp->mpTarget)));
+        buf->WriteS32(static_cast<s32>(chomp->meChainChompState));
+        buf->WriteBytes(&chomp->mtStateTimer, sizeof(Timer));
+        buf->WriteS8(PlayerToIndex(reinterpret_cast<cPlayer*>(chomp->mpThrower)));
+        buf->WriteS32(chomp->mnThrowerPadID);
+    }
+}
+
+static void LoadNPCs(SaveStateBuffer* buf)
+{
+    NPCManager* npcs = CurrentNPCs();
+    Bowser* bowser = npcs != nullptr ? npcs->mpBowser : nullptr;
+    ChainChomp* chomp = npcs != nullptr ? npcs->mpChainChomp : nullptr;
+    const float tilt = buf->ReadF32();
+    if (tilt != Bowser::mfYAxisTilt)
+        Bowser::SetTiltParameters(tilt);   /* the pitch tilt, and the force it puts on the ball */
+
+    if (buf->ReadU8() != 0)
+    {
+        /* Both games load the same stadium, so both have him or neither does. */
+        if (bowser == nullptr)
+            return;
+        LoadMovableNPC(buf, bowser);
+        bowser->mpTarget = reinterpret_cast<cFielder*>(IndexToPlayer(buf->ReadS8()));
+        buf->ReadBytes(&bowser->mv3TargetPos, sizeof(nlVector3));
+        bowser->meBowserState = static_cast<eBowserState>(buf->ReadS32());
+        buf->ReadBytes(&bowser->mtStateTimer, sizeof(Timer));
+        buf->ReadBytes(&bowser->mtActiveTimer, sizeof(Timer));
+        bowser->mAnimID = buf->ReadS32();
+        bowser->mbDoTilt = buf->ReadU8() != 0;
+        bowser->mAttackType = static_cast<eBowserAttackType>(buf->ReadS32());
+        bowser->mStompStage = buf->ReadS32();
+        bowser->mbFirstTime = buf->ReadU8() != 0;
+        bowser->mbAlive = buf->ReadU8() != 0;
+        bowser->mbResetPending = buf->ReadU8() != 0;
+    }
+
+    if (buf->ReadU8() != 0)
+    {
+        if (chomp == nullptr)
+            return;
+        LoadMovableNPC(buf, chomp);
+        chomp->mpTarget = reinterpret_cast<cFielder*>(IndexToPlayer(buf->ReadS8()));
+        chomp->meChainChompState = static_cast<eChainChompState>(buf->ReadS32());
+        buf->ReadBytes(&chomp->mtStateTimer, sizeof(Timer));
+        chomp->mpThrower = reinterpret_cast<cFielder*>(IndexToPlayer(buf->ReadS8()));
+        chomp->mnThrowerPadID = buf->ReadS32();
+    }
+}
+
 bool SaveGameState(SaveStateBuffer* buf)
 {
     buf->Reset();
@@ -1326,7 +1479,10 @@ bool SaveGameState(SaveStateBuffer* buf)
     buf->WriteF32(0.0f);
     buf->WriteF32(FixedUpdateTask::mSimulationTime);
     buf->WriteF32(FixedUpdateTask::mfFrameLockTime);
-    buf->WriteF32(FixedUpdateTask::mTimeScale);
+    /* PORT: the slow-motion factor only sets how often game frames run, never what they compute,
+       and render-rate code (cameras, presentations) puts it back to 1 at a different moment on
+       each PC: left out of the comparison, and each game keeps its own. */
+    buf->WriteF32(1.0f);
 
     /* ---- cGame state ---- */
     TrackField("cGame", buf->Size());
@@ -1669,6 +1825,8 @@ bool SaveGameState(SaveStateBuffer* buf)
     TrackField("Formations", buf->Size());
     SaveFormations(buf, g_pTeams[0]);
     SaveFormations(buf, g_pTeams[1]);
+    TrackField("NPCs", buf->Size());
+    SaveNPCs(buf);
 
     return true;
 }
@@ -1706,7 +1864,7 @@ bool LoadGameState(SaveStateBuffer* buf)
     (void)buf->ReadF32();  /* was mAccumulatedDeltaT; see SaveGameState */
     FixedUpdateTask::mSimulationTime = buf->ReadF32();
     FixedUpdateTask::mfFrameLockTime = buf->ReadF32();
-    FixedUpdateTask::mTimeScale = buf->ReadF32();
+    (void)buf->ReadF32();   /* the slow-motion factor: see SaveGameState */
 
     /* ---- cGame state ---- */
     u8 hasGame = buf->ReadU8();
@@ -1969,6 +2127,7 @@ bool LoadGameState(SaveStateBuffer* buf)
     LoadNetMesh(buf, NetMesh::spNegativeXNetMesh);
     LoadFormations(buf, g_pTeams[0]);
     LoadFormations(buf, g_pTeams[1]);
+    LoadNPCs(buf);
 
     /* The loaded owner holds the ball in the physics engine too. */
     PortNetplayAttachBallToOwner();

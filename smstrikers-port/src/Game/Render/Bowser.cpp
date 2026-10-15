@@ -25,6 +25,18 @@
 
 #include "math.h"
 
+// PORT: online, Bowser aimed his attacks at the camera's target. The camera moves once per
+// rendered frame, by a different amount on each PC, so the two games sent Bowser to different
+// places. Online he aims at the ball instead (which the gameplay camera follows anyway), and
+// reads the pitch tilt from his own value rather than from the camera's up vector.
+extern "C" int PortNetplayRunning(void);
+static nlVector3 PortBowserViewTarget()
+{
+    if (PortNetplayRunning() && g_pBall != NULL)
+        return g_pBall->m_v3Position;
+    return nlDLRingGetStart<cBaseCamera>(cCameraManager::m_cameraStack)->GetTargetPosition();
+}
+
 #pragma inline_max_total_size(5000)
 
 /* Owned by src/Game/SoundProps/bowsergensoundproperties.cpp. */
@@ -230,7 +242,7 @@ void Bowser::Update(float fDeltaT)
         {
             if (mAttackType != BOWSER_ATTACK_STOMP)
             {
-                if (fabsf(mv3TargetPos.x - nlDLRingGetStart<cBaseCamera>(cCameraManager::m_cameraStack)->GetTargetPosition().x) > 8.0f)
+                if (fabsf(mv3TargetPos.x - PortBowserViewTarget().x) > 8.0f)
                 {
                     return;
                 }
@@ -733,9 +745,11 @@ void Bowser::ActionInit()
     if (mAttackType == BOWSER_ATTACK_STOMP)
     {
         mStompStage++;
-        if (fabsf(cCameraManager::m_UpVectorStack[cCameraManager::m_UpVectorStackSize].x) < 0.001f
-            && fabsf(cCameraManager::m_UpVectorStack[cCameraManager::m_UpVectorStackSize].y) < 0.001f
-            && mStompStage == 2)
+        const bool portLevel = PortNetplayRunning()
+            ? fabsf(mfYAxisTilt) < 0.001f
+            : (fabsf(cCameraManager::m_UpVectorStack[cCameraManager::m_UpVectorStackSize].x) < 0.001f
+               && fabsf(cCameraManager::m_UpVectorStack[cCameraManager::m_UpVectorStackSize].y) < 0.001f);
+        if (portLevel && mStompStage == 2)
         {
             mAttackType = BOWSER_ATTACK_ROLL;
             EmissionManager::Destroy((uintptr_t)this, fxGetGroup("bowser_fire"));
@@ -806,9 +820,7 @@ void Bowser::ActionInit()
         return;
     if (mStompStage == 0)
     {
-        cBaseCamera* cam = nlDLRingGetStart(cCameraManager::m_cameraStack);
-        const nlVector3& target = cam->GetTargetPosition();
-        mv3TargetPos = target;
+        mv3TargetPos = PortBowserViewTarget();
     }
     else
     {
@@ -1025,8 +1037,7 @@ void Bowser::ActionFall()
     meBowserState = BOWSER_STATE_FALL;
     mfDesiredSpeed = 0.0f;
 
-    cBaseCamera* camera = nlDLRingGetStart<cBaseCamera>(cCameraManager::m_cameraStack);
-    mv3TargetPos = camera->GetTargetPosition();
+    mv3TargetPos = PortBowserViewTarget();
 
     nlVector3 targetPos = mv3TargetPos;
 
@@ -1295,8 +1306,7 @@ void Bowser::ActionLeave()
 
     SetBowserAnimState(BOWSER_ANIM_JUMP, PM_HOLD, 0.2f);
 
-    cBaseCamera* camera = nlDLRingGetStart<cBaseCamera>(cCameraManager::m_cameraStack);
-    nlVector3 v3CameraTarget = camera->GetTargetPosition();
+    nlVector3 v3CameraTarget = PortBowserViewTarget();
 
     nlVector3 v3Velocity = { 25.0f, 0.0f, 25.0f };
 
