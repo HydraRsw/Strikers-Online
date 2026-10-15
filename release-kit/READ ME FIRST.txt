@@ -53,7 +53,17 @@ You need your own copy of Super Mario Strikers (a disc image: .iso, .gcm,
   Keep both windows open while people play.
 
 
-4. IF SOMETHING GOES WRONG
+4. UPDATES
+----------
+  The game tells you when a new version is out (F1 > Updates). Press
+  "Update now": the game closes, updates itself and starts again.
+  Or double-click UPDATE.bat. Your strikers.ini, controls, sound settings
+  and saves are kept.
+
+  Both players need the same version to play online, so update together.
+
+
+5. IF SOMETHING GOES WRONG
 --------------------------
   - Both players need this same release. Different versions do not connect.
   - "Could not connect": check the server address, and that the person

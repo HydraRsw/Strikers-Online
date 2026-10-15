@@ -25,7 +25,9 @@ here: widescreen, high frame rates, modern graphics backends, controller support
 - **Goals, replays and pauses for both.** When one player scores, pauses or skips a replay, both
   games stop and start again together, with a short countdown.
 - **Friendly in-game menu (F1).** Play Online, Controls (pick your controller, rebind buttons),
-  Sound, Display.
+  Sound, Display, Updates.
+- **One-click updates.** The game says when a new release is out; F1 > Updates > **Update now**
+  (or `UPDATE.bat`) downloads and installs it, keeping your settings.
 
 ## Play online
 

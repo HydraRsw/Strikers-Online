@@ -33,7 +33,18 @@ tools\windows\MAKE-RELEASE.bat path\to\build path\to\settings-app-folder
 - The second, optional, is a folder holding `strikers-settings.exe` and its Qt files, such as the
   original port's Windows release. Without it the zip has no settings app.
 
-It writes `release\SuperMarioStrikersOnline-windows-x86_64.zip`.
+It writes `release\SuperMarioStrikersOnline-windows-x86_64.zip`, with a `version.txt` taken from
+the `VERSION` file at the top of the repository.
+
+## Publishing an update
+
+1. Raise the number in `VERSION` (for example `v1.1.0` to `v1.2.0`).
+2. Build, then run `MAKE-RELEASE.bat`.
+3. On GitHub, draft a release whose **tag is exactly the text in `VERSION`**, and attach the zip.
+
+Players' games compare their `version.txt` with the newest release's tag (`updater.ps1`, which
+`UPDATE.bat` and the F1 menu run); any difference offers the update. `updater.ps1` asks
+`HydraRsw/Strikers-Online` by default: change `$Repo` at its top in a fork.
 
 ## Rules for code that runs during an online match
 

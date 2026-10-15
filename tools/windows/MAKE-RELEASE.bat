@@ -51,6 +51,12 @@ echo Copying the guides and licences...
 copy /y "%REPO%\release-kit\READ ME FIRST.txt" "%OUT%\" >nul
 copy /y "%REPO%\release-kit\strikers.ini" "%OUT%\" >nul
 copy /y "%REPO%\release-kit\HOST-SERVER.bat" "%OUT%\" >nul
+copy /y "%REPO%\release-kit\UPDATE.bat" "%OUT%\" >nul
+copy /y "%REPO%\release-kit\updater.ps1" "%OUT%\" >nul
+rem version.txt: what the updater compares with the newest GitHub release's tag.
+set "VERSION=unknown"
+if exist "%REPO%\VERSION" set /p VERSION=<"%REPO%\VERSION"
+>"%OUT%\version.txt" echo %VERSION%
 copy /y "%REPO%\smstrikers-port\strikers.ini.example" "%OUT%\" >nul
 copy /y "%REPO%\smstrikers-port\LICENSE-*.txt" "%OUT%\" >nul
 if exist "%REPO%\smstrikers-port\licenses" robocopy "%REPO%\smstrikers-port\licenses" "%OUT%\licenses" /E /NFL /NDL /NJH /NJS /NP >nul
@@ -60,6 +66,10 @@ if exist "%REPO%\release\%NAME%.zip" del /q "%REPO%\release\%NAME%.zip"
 powershell -NoProfile -Command "Compress-Archive -Path '%OUT%\*' -DestinationPath '%REPO%\release\%NAME%.zip' -Force"
 if exist "%REPO%\release\%NAME%.zip" (
     echo Done: %REPO%\release\%NAME%.zip
+    echo.
+    echo   Version %VERSION%. On GitHub, give the release EXACTLY this tag: %VERSION%
+    echo   ^(the updater compares the two^). For the next update, raise the number in
+    echo   the VERSION file first, for example v1.1.0 -^> v1.2.0.
 ) else (
     echo Could not create the zip.
     exit /b 1

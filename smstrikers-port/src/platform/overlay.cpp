@@ -17,6 +17,7 @@
 #include "port/netplay/savestate.h"
 #include "port/netplay/transport.h"
 #include "port/user_options.h"
+#include "port/updater.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -3779,6 +3780,133 @@ void draw_advanced_page(const PortBenchLive& live)
 }
 
 // ---------------------------------------------------------------------------
+// Updates: this version, and the newest one on GitHub.
+// ---------------------------------------------------------------------------
+void draw_updates_page()
+{
+    const float fs = ImGui::GetFontSize();
+    heading("THIS VERSION");
+    {
+        FontScope f(g_fontBold);
+        ImGui::TextColored(ui::kText, "%s", PortUpdaterVersion());
+    }
+    ImGui::TextColored(ui::kDim, "Both players need the same version to play online.");
+
+    heading("NEWEST VERSION");
+    const PortUpdateState st = PortUpdaterPoll();
+    switch (st)
+    {
+    case PORT_UPDATE_UNAVAILABLE:
+        ImGui::TextColored(ui::kDim, "Updates work in the release downloaded from GitHub (it has UPDATE.bat).");
+        ImGui::TextColored(ui::kDim, "This copy was built from source.");
+        break;
+    case PORT_UPDATE_IDLE:
+        if (ImGui::Button("Check for updates"))
+            PortUpdaterCheck();
+        break;
+    case PORT_UPDATE_CHECKING:
+        spinner(ui::kBlue);
+        ImGui::SameLine();
+        ImGui::TextColored(ui::kBlue, "Asking GitHub...");
+        break;
+    case PORT_UPDATE_UP_TO_DATE:
+        ImGui::TextColored(ui::kLime, "You have the newest version.");
+        if (ImGui::Button("Check again"))
+            PortUpdaterCheck();
+        break;
+    case PORT_UPDATE_ERROR:
+        ImGui::TextColored(ui::kOrange, "Could not check: %s", PortUpdaterError());
+        if (ImGui::Button("Try again"))
+            PortUpdaterCheck();
+        break;
+    case PORT_UPDATE_AVAILABLE:
+    {
+        if (begin_card("##update_card"))
+        {
+            char title[96];
+            std::snprintf(title, sizeof title, "%s IS OUT", PortUpdaterLatest());
+            heading(title);
+            const char* notes = PortUpdaterNotes();
+            if (notes[0] != '\0')
+            {
+                ImGui::BeginChild("##update_notes", ImVec2(0.0f, fs * 9.0f), ImGuiChildFlags_None);
+                ImGui::PushTextWrapPos(0.0f);
+                ImGui::TextUnformatted(notes);
+                ImGui::PopTextWrapPos();
+                ImGui::EndChild();
+            }
+            const bool online = NetplayManager::Instance().IsActive() ||
+                                NetplayLobby::Instance().GetState() != LOBBY_STATE_IDLE;
+            static bool s_launchFailed = false;
+            ImGui::BeginDisabled(online);
+            if (go_button("Update now", ImVec2(fs * 10.0f, fs * 2.4f)))
+            {
+                if (PortUpdaterLaunch())
+                    PortRequestQuit();
+                else
+                    s_launchFailed = true;
+            }
+            ImGui::EndDisabled();
+            if (PortUpdaterPage()[0] != '\0')
+            {
+                ImGui::SameLine();
+                if (ImGui::Button("See it on GitHub", ImVec2(0.0f, fs * 2.4f)))
+                    SDL_OpenURL(PortUpdaterPage());
+            }
+            if (online)
+                ImGui::TextColored(ui::kOrange, "Leave the online room first.");
+            else if (s_launchFailed)
+                ImGui::TextColored(ui::kRed, "Could not start the updater. Close the game and run UPDATE.bat.");
+            else
+                ImGui::TextColored(ui::kDim, "The game closes, updates and starts again. Your settings and saves are kept.");
+        }
+        end_card();
+        break;
+    }
+    }
+}
+
+// Asks GitHub once, a few seconds after the game starts, and says so if there is something new.
+void update_tick()
+{
+    static double s_start = -1.0;
+    static bool s_asked = false;
+    static double s_toastUntil = -1.0;
+    const double now = ImGui::GetTime();
+    if (s_start < 0.0)
+        s_start = now;
+    if (!s_asked && now - s_start > 4.0)
+    {
+        s_asked = true;
+        PortUpdaterCheck();
+    }
+    const PortUpdateState st = PortUpdaterPoll();
+    if (st == PORT_UPDATE_AVAILABLE && s_toastUntil < 0.0)
+        s_toastUntil = now + 15.0;
+    if (st == PORT_UPDATE_AVAILABLE && now < s_toastUntil && !s_menuOpen && !PortMatchExists())
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        const float fs = ImGui::GetFontSize();
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - fs * 0.8f, io.DisplaySize.y - fs * 3.0f),
+                                ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+        ImGui::SetNextWindowBgAlpha(0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        if (ImGui::Begin("##update_toast", nullptr,
+                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                             ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs))
+        {
+            char text[128];
+            std::snprintf(text, sizeof text, "Update %s is out: F1 > Updates", PortUpdaterLatest());
+            pill(text, ui::kYellow);
+        }
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // The F1 menu: a centred panel with the pages down the left.
 // ---------------------------------------------------------------------------
 enum MenuPage
@@ -3787,6 +3915,7 @@ enum MenuPage
     PAGE_CONTROLS,
     PAGE_SOUND,
     PAGE_DISPLAY,
+    PAGE_UPDATES,
     PAGE_ADVANCED,
     PAGE_COUNT
 };
@@ -3802,6 +3931,7 @@ const PageInfo kPages[PAGE_COUNT] = {
     { "Controls", "Controller and buttons", "Controls", "Choose what you play with and which button does what." },
     { "Sound", "Music, effects, voices", "Sound", "Volume levels, kept on this PC." },
     { "Display", "Screen and menu", "Display", "Fullscreen, V-Sync and the size of this menu." },
+    { "Updates", "Get the newest version", "Updates", "Install the newest release from GitHub in one click." },
     { "Advanced", "Developer tools", "Advanced", "Everything else: the tools used to build and debug this port." },
 };
 int s_page = PAGE_ONLINE;
@@ -3819,6 +3949,7 @@ void draw_main_menu(const PortBenchLive& live)
             else if (std::strcmp(t, "Controls") == 0) s_page = PAGE_CONTROLS;
             else if (std::strcmp(t, "Sound") == 0) s_page = PAGE_SOUND;
             else if (std::strcmp(t, "Display") == 0) s_page = PAGE_DISPLAY;
+            else if (std::strcmp(t, "Updates") == 0) s_page = PAGE_UPDATES;
             else s_page = PAGE_ADVANCED;
         }
     }
@@ -3857,7 +3988,7 @@ void draw_main_menu(const PortBenchLive& live)
         ImGui::SetCursorPos(ImVec2(fs * 1.5f, fs * 0.7f));
         ImGui::BeginGroup();
         big_text(g_fontTitle, 1.8f, ui::kLime, "SUPER MARIO STRIKERS", false);
-        ImGui::TextColored(ui::kDim, "ONLINE EDITION");
+        ImGui::TextColored(ui::kDim, "ONLINE EDITION  \xC2\xB7  %s", PortUpdaterVersion());
         ImGui::EndGroup();
 
         // Status and close, right-aligned in the header.
@@ -3882,7 +4013,14 @@ void draw_main_menu(const PortBenchLive& live)
             {
                 if (i == PAGE_ADVANCED)
                     ImGui::Dummy(ImVec2(0.0f, fs * 0.8f));
-                if (nav_item(kPages[i].name, kPages[i].sub, s_page == i))
+                const char* sub = kPages[i].sub;
+                char newSub[64];
+                if (i == PAGE_UPDATES && PortUpdaterPoll() == PORT_UPDATE_AVAILABLE)
+                {
+                    std::snprintf(newSub, sizeof newSub, "New: %s!", PortUpdaterLatest());
+                    sub = newSub;
+                }
+                if (nav_item(kPages[i].name, sub, s_page == i))
                     s_page = i;
             }
             // Keys, at the bottom.
@@ -3912,6 +4050,7 @@ void draw_main_menu(const PortBenchLive& live)
             case PAGE_CONTROLS: draw_controls_tab(); break;
             case PAGE_SOUND: draw_sound_tab(); break;
             case PAGE_DISPLAY: draw_display_page(); break;
+            case PAGE_UPDATES: draw_updates_page(); break;
             default: draw_advanced_page(live); break;
             }
         }
@@ -4140,6 +4279,9 @@ void PortOverlayDraw(void)
             ImGui::End();
         }
     }
+
+    // Is there a newer release? (asked once, shown for a few seconds)
+    update_tick();
 
     // A hint for the first seconds: where the menu is.
     {
