@@ -467,6 +467,9 @@ public:
     /* True once if the opponent reported that the current match could not
        start; *reason gets their code. */
     bool TakeRemoteAbort(int* reason);
+    /* The other game's netcode version if it differs from ours (0: same, or not known yet).
+       Different builds cannot play together; the menu says so. */
+    u32  GetPeerVersionMismatch() const { return m_peerVersion; }
     int  GetDesyncFrame() const { return m_desyncFrame; }
 
     /* Kept for compatibility: rollback now happens inside PreUpdate.
@@ -594,6 +597,7 @@ private:
     u64  m_vsLastSendUs;
     bool m_remoteAbort;
     int  m_remoteAbortReason;
+    u32  m_peerVersion = 0;    /* the other game's netcode version, when it differs */
 
     /* Starting state: the host sends its frame-0 state, the guest loads it,
        so both matches start from identical bytes however they loaded. */

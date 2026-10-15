@@ -77,9 +77,9 @@ Keyboard keys, stick deadzones, rumble and graphics are in **Mario Strikers Sett
 
 | What you see | What to do |
 | --- | --- |
-| "Could not connect" | Check the `server =` address, and that the relay and its Playit tunnel are running on the host's PC. |
+| "Could not connect", or stuck on "Joining room" | Check the `server =` address, and that the relay and its Playit tunnel are both running on the host's PC (the Playit window says the tunnel is online). |
 | Stuck on "Joining room..." | Wrong room code, or the room was closed. Ask for a new code. |
-| Version mismatch in the log | Both players need the same release. Download it again. |
+| "Your friend's game is a different version" | Both players need the same release: whoever is older, update (F1 > Updates). |
 | The match does not start | Both games must be on the main menu, past the title screen. |
 | The game crashes or misbehaves | Send `strikers-log.txt` from the game folder (before starting the game again) when you report it. |
 

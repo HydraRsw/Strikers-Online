@@ -458,6 +458,7 @@ bool NetplayManager::Connect(u16 localPort, const char* remoteAddr,
 {
     if (m_state != NETPLAY_STATE_IDLE)
         Disconnect();
+    m_peerVersion = 0;
 
 #if defined(_WIN32) && defined(_M_X64)
     /* The Windows C runtime picks its sin/cos/pow/... code by the processor
@@ -776,11 +777,14 @@ void NetplayManager::ReceivePackets()
             NetplayHandshakePacket* hs = reinterpret_cast<NetplayHandshakePacket*>(buf);
             if (hs->magic != NETPLAY_MAGIC || hs->version != NETPLAY_PROTOCOL_VERSION)
             {
-                fprintf(stderr, "[netplay] handshake rejected: peer runs protocol %u, we run %u "
-                                "(both players need the same build)\n",
-                        hs->version, NETPLAY_PROTOCOL_VERSION);
+                if (m_peerVersion != hs->version)
+                    fprintf(stderr, "[netplay] handshake rejected: peer runs protocol %u, we run %u "
+                                    "(both players need the same build)\n",
+                            hs->version, NETPLAY_PROTOCOL_VERSION);
+                m_peerVersion = hs->version;
                 break;
             }
+            m_peerVersion = 0;
             if (hs->playerSlot == m_localSlot)
             {
                 fprintf(stderr, "[netplay] WARNING: both players are slot %d; one must be Player 2\n",

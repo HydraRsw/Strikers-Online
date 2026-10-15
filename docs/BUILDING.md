@@ -34,16 +34,19 @@ tools\windows\MAKE-RELEASE.bat path\to\build path\to\settings-app-folder
   original port's Windows release. Without it the zip has no settings app.
 
 It writes `release\SuperMarioStrikersOnline-windows-x86_64.zip`, with a `version.txt` taken from
-the `VERSION` file at the top of the repository.
+the `VERSION` file at the top of the repository. It also adds `playit.exe` (taken from the build
+folder if it is there, otherwise downloaded from Playit's official GitHub releases by
+`get-playit.ps1`) and its licence, `LICENSE-playit.txt`. `playit.exe` is never committed.
 
 ## Publishing an update
 
-1. Raise the number in `VERSION` (for example `v1.1.0` to `v1.2.0`).
+1. Raise the number in `VERSION` (for example `1.0.3` to `1.0.4`).
 2. Build, then run `MAKE-RELEASE.bat`.
 3. On GitHub, draft a release whose **tag is exactly the text in `VERSION`**, and attach the zip.
 
 Players' games compare their `version.txt` with the newest release's tag (`updater.ps1`, which
-`UPDATE.bat` and the F1 menu run); any difference offers the update. `updater.ps1` asks
+`UPDATE.bat` and the F1 menu run); when the release's number is higher, the game opens its Updates
+page at start. `updater.ps1` asks
 `HydraRsw/Strikers-Online` by default: change `$Repo` at its top in a fork.
 
 ## Rules for code that runs during an online match

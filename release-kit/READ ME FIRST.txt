@@ -41,9 +41,9 @@ You need your own copy of Super Mario Strikers (a disc image: .iso, .gcm,
 -------------------------------------
   Only one person needs to do this. Their PC must be on while people play.
 
-  a) Download playit for Windows from https://playit.gg/download and put
-     playit.exe in this folder.
-  b) Double-click HOST-SERVER.bat.
+  a) playit.exe (the free Playit tunnel) is already in this folder. If it
+     is missing, download it from https://playit.gg/download and put it here.
+  b) Double-click HOST-SERVER.bat. It opens the server and Playit.
   c) First time: open the https://playit.gg/claim/... link the Playit window
      shows, make a free account, and add a tunnel:
          Type: Custom (UDP)      Local port: 7200
@@ -55,8 +55,9 @@ You need your own copy of Super Mario Strikers (a disc image: .iso, .gcm,
 
 4. UPDATES
 ----------
-  The game tells you when a new version is out (F1 > Updates). Press
-  "Update now": the game closes, updates itself and starts again.
+  When a new version is out, the game shows it as soon as it starts.
+  Press "Update now": the game closes, updates itself and starts again.
+  ("Later" closes it; it is also under F1 > Updates.)
   Or double-click UPDATE.bat. Your strikers.ini, controls, sound settings
   and saves are kept.
 
@@ -66,7 +67,8 @@ You need your own copy of Super Mario Strikers (a disc image: .iso, .gcm,
 5. IF SOMETHING GOES WRONG
 --------------------------
   - Both players need this same release. Different versions do not connect.
-  - "Could not connect": check the server address, and that the person
-    running the server has HOST-SERVER.bat and Playit open.
+  - "Could not connect" or stuck on "Joining room": check the server
+    address, and that the person running the server has BOTH windows open
+    (the relay server and Playit), with the Playit tunnel online.
   - Crashes and other problems: send strikers-log.txt from this folder
     (before starting the game again) with your report.

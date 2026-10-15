@@ -26,8 +26,8 @@ here: widescreen, high frame rates, modern graphics backends, controller support
   games stop and start again together, with a short countdown.
 - **Friendly in-game menu (F1).** Play Online, Controls (pick your controller, rebind buttons),
   Sound, Display, Updates.
-- **One-click updates.** The game says when a new release is out; F1 > Updates > **Update now**
-  (or `UPDATE.bat`) downloads and installs it, keeping your settings.
+- **One-click updates.** When a new release is out, the game opens its Updates page at start;
+  **Update now** (or `UPDATE.bat`) downloads and installs it, keeping your settings.
 
 ## Play online
 
@@ -69,6 +69,8 @@ Where the online code lives:
 - The PC port: [Strikers](https://github.com/new-coke/strikers) and its author.
 - The decompilation: [Yannick Suter](https://github.com/yannicksuter) and its contributors.
 - [Aurora](https://github.com/encounter/aurora), which the port is built on.
+- [Playit](https://github.com/playit-cloud/playit-agent) by Developed Methods: the release zip
+  includes their unchanged `playit.exe` (BSD-2-Clause, see `LICENSE-playit.txt`) for hosting.
 - Online mode: the contributors of this fork.
 
 ## Licensing

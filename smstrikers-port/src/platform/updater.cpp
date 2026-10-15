@@ -58,6 +58,46 @@ bool file_exists(const char* path)
 
 void path_of(char* out, size_t cap, const char* name) { std::snprintf(out, cap, "%s%s", base(), name); }
 
+// "v1.2.3" or "1.2.3" into numbers; false if it is not a version like that.
+bool parse_version(const char* s, int out[4])
+{
+    out[0] = out[1] = out[2] = out[3] = 0;
+    if (*s == 'v' || *s == 'V')
+        s++;
+    int n = 0;
+    while (n < 4)
+    {
+        if (*s < '0' || *s > '9')
+            return false;
+        int v = 0;
+        while (*s >= '0' && *s <= '9')
+            v = v * 10 + (*s++ - '0');
+        out[n++] = v;
+        if (*s == '\0')
+            return true;
+        if (*s != '.')
+            return false;
+        s++;
+    }
+    return false;
+}
+
+// Is `latest` newer than `current`? Versions compare by number (1.0.10 is newer than 1.0.9, and a
+// build newer than the newest release is not told to go back); anything else counts as newer
+// whenever the two differ.
+bool is_newer(const char* latest, const char* current)
+{
+    int a[4], b[4];
+    if (parse_version(latest, a) && parse_version(current, b))
+    {
+        for (int i = 0; i < 4; i++)
+            if (a[i] != b[i])
+                return a[i] > b[i];
+        return false;
+    }
+    return std::strcmp(latest, current) != 0;
+}
+
 // Reads update-check.txt: key=value lines.
 void read_answer()
 {
@@ -102,7 +142,7 @@ void read_answer()
             std::snprintf(s_error, sizeof s_error, "GitHub did not say which version is the newest.");
         return;
     }
-    s_state = std::strcmp(s_latest, s_version) == 0 ? PORT_UPDATE_UP_TO_DATE : PORT_UPDATE_AVAILABLE;
+    s_state = is_newer(s_latest, s_version) ? PORT_UPDATE_AVAILABLE : PORT_UPDATE_UP_TO_DATE;
 }
 
 }   // namespace

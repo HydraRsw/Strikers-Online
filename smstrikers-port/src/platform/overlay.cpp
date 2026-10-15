@@ -3633,6 +3633,12 @@ void draw_netplay_tab()
             }
             ImGui::TextColored(ui::kDim, "Server %s:%d. This takes a few seconds (8 at most).", s_serverHost,
                                s_serverPort);
+            if (mgr.GetPeerVersionMismatch() != 0)
+            {
+                ImGui::TextColored(ui::kRed, "Your friend's game is a different version (netcode %u, yours %d).",
+                                   mgr.GetPeerVersionMismatch(), NETPLAY_PROTOCOL_VERSION);
+                ImGui::TextColored(ui::kRed, "You both need the same release: whoever is older, update (F1 > Updates).");
+            }
         }
         end_card();
         if (ImGui::Button("Cancel", ImVec2(fs * 7.0f, fs * 2.0f)))
@@ -3938,6 +3944,9 @@ void draw_updates_page()
                 if (ImGui::Button("See it on GitHub", ImVec2(0.0f, fs * 2.4f)))
                     SDL_OpenURL(PortUpdaterPage());
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Later", ImVec2(fs * 6.0f, fs * 2.4f)))
+                set_menu_open(false);
             if (online)
                 ImGui::TextColored(ui::kOrange, "Leave the online room first.");
             else if (s_launchFailed)
@@ -3952,8 +3961,11 @@ void draw_updates_page()
 }
 
 // Asks GitHub once, a few seconds after the game starts, and says so if there is something new.
-void update_tick()
+// Returns true once, the first moment a newer release is known and the menu may open for it
+// (not during a match or an online session); the caller then opens the Updates page.
+bool update_tick()
 {
+    static bool s_announced = false;
     static double s_start = -1.0;
     static bool s_asked = false;
     static double s_toastUntil = -1.0;
@@ -3966,6 +3978,14 @@ void update_tick()
         PortUpdaterCheck();
     }
     const PortUpdateState st = PortUpdaterPoll();
+    if (st == PORT_UPDATE_AVAILABLE && !s_announced && !s_menuOpen && !PortMatchExists() &&
+        !NetplayManager::Instance().IsActive() && NetplayLobby::Instance().GetState() == LOBBY_STATE_IDLE)
+    {
+        s_announced = true;
+        fprintf(stderr, "[update] %s is out (this is %s); showing the Updates page\n", PortUpdaterLatest(),
+                PortUpdaterVersion());
+        return true;
+    }
     if (st == PORT_UPDATE_AVAILABLE && s_toastUntil < 0.0)
         s_toastUntil = now + 15.0;
     if (st == PORT_UPDATE_AVAILABLE && now < s_toastUntil && !s_menuOpen && !PortMatchExists())
@@ -3989,6 +4009,7 @@ void update_tick()
         ImGui::End();
         ImGui::PopStyleVar(2);
     }
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -4366,8 +4387,12 @@ void PortOverlayDraw(void)
         }
     }
 
-    // Is there a newer release? (asked once, shown for a few seconds)
-    update_tick();
+    // Is there a newer release? Asked once at start; when there is, the menu opens on Updates.
+    if (update_tick())
+    {
+        s_page = PAGE_UPDATES;
+        set_menu_open(true);
+    }
 
     // A hint for the first seconds: where the menu is.
     {

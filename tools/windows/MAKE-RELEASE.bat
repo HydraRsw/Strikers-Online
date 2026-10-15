@@ -7,6 +7,10 @@ rem BUILD_DIR         the build folder holding strikers.exe and strikers_relay.e
 rem SETTINGS_APP_DIR  optional: a folder holding strikers-settings.exe and its Qt files
 rem                   (for example the original port's Windows release)
 rem
+rem playit.exe (the Playit tunnel, BSD-2-Clause) goes in too, with its licence: taken from
+rem BUILD_DIR if it is there, otherwise downloaded from Playit's official GitHub releases.
+rem It is never committed to the repository (.gitignore).
+rem
 rem Writes release\SuperMarioStrikersOnline-windows-x86_64.zip in the repository.
 setlocal
 set "REPO=%~dp0..\.."
@@ -45,6 +49,19 @@ if not "%SETTINGS%"=="" if exist "%SETTINGS%\strikers-settings.exe" (
     for %%d in (platforms styles imageformats iconengines generic networkinformation tls) do (
         if exist "%SETTINGS%\%%d" robocopy "%SETTINGS%\%%d" "%OUT%\%%d" /E /NFL /NDL /NJH /NJS /NP >nul
     )
+)
+
+echo Adding Playit (the tunnel HOST-SERVER.bat starts)...
+if exist "%BUILD%\playit.exe" (
+    copy /y "%BUILD%\playit.exe" "%OUT%\" >nul
+    echo   playit.exe taken from %BUILD%
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\tools\windows\get-playit.ps1" -Out "%OUT%\playit.exe"
+)
+if exist "%OUT%\playit.exe" (
+    copy /y "%REPO%\release-kit\LICENSE-playit.txt" "%OUT%\" >nul
+) else (
+    echo   Note: could not get playit.exe; hosts will have to download it themselves.
 )
 
 echo Copying the guides and licences...

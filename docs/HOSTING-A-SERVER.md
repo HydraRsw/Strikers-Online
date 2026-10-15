@@ -11,8 +11,8 @@ Players never need to open ports on their routers: only the relay must be reacha
 
 You need the release zip (it contains `strikers_relay.exe` and `HOST-SERVER.bat`).
 
-1. Download **playit** for Windows from <https://playit.gg/download> and put `playit.exe` in the
-   game folder, next to `HOST-SERVER.bat`.
+1. `playit.exe` comes in the release zip, next to `HOST-SERVER.bat`. (If yours is missing, download
+   it from <https://playit.gg/download> and put it there.)
 2. Double-click **HOST-SERVER.bat**. Two windows open: the relay ("listening on UDP port 7200") and
    Playit.
 3. **First time only:** the Playit window shows a `https://playit.gg/claim/...` link. Open it, create
