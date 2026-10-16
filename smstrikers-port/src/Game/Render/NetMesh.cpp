@@ -148,9 +148,17 @@ void NetMesh::UpdateUntilRelaxed()
     }
 }
 
+extern "C" int PortNetplayRunning(void);   // netplay.cpp
+
 inline static void AccumForces(NetMesh* self, nlVector3& newPos)
 {
     nlVector3* upVector = &cCameraManager::m_UpVectorStack[cCameraManager::m_UpVectorStackSize];
+    // PORT: the nets' gravity follows the camera's up vector, which the camera shake (Bowser
+    // landing, big hits) tilts differently on each PC, at each PC's frame rate. Online the nets
+    // are gameplay (they push the ball), so they use the field's true up instead.
+    static nlVector3 s_v3FieldUp = { 0.0f, 0.0f, 1.0f };
+    if (PortNetplayRunning())
+        upVector = &s_v3FieldUp;
     float gravityMagnitude = -NetMesh::s_fNetGravityMagnitude;
 
     newPos.x = gravityMagnitude * upVector->x;

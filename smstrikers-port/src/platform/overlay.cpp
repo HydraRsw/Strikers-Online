@@ -2932,17 +2932,23 @@ void online_end_tick()
     static u64 s_overSinceUs = 0;
     static bool s_inputBlocked = false;
     static bool s_returned = false;
+    static u64 s_unblockAtUs = 0;
     const u64 kShowUs = 7000000ULL;
+    // After going back, the controller stays away from the game a little longer: players are
+    // usually still pressing A from the result screen, and on the game's own side-select screen
+    // that confirmed "no sides chosen" and started a match on one PC only.
+    const u64 kQuietAfterReturnUs = 3000000ULL;
 
     NetplayManager& mgr = NetplayManager::Instance();
     int home = 0, away = 0;
     const bool over = mgr.IsActive() && PortMatchIsOver(&home, &away) && s_session.taskState == 1;
     if (!over)
     {
-        if (s_inputBlocked)
+        if (s_inputBlocked && (s_unblockAtUs == 0 || NetplayGetTimeUs() >= s_unblockAtUs))
         {
             PADBlockInput(false);
             s_inputBlocked = false;
+            s_unblockAtUs = 0;
         }
         s_overSinceUs = 0;
         s_returned = false;
@@ -2964,8 +2970,7 @@ void online_end_tick()
     {
         s_returned = true;
         s_rematchHint = true;
-        PADBlockInput(false);
-        s_inputBlocked = false;
+        s_unblockAtUs = now + kQuietAfterReturnUs;   // input comes back once on team select
         cmd(PDBG_RETURN_TO_FE);
         return;
     }

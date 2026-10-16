@@ -1455,12 +1455,17 @@ void NetplayManager::CheckDesync()
         if (r.frame < 0 || r.frame > limit)
             continue;
         const ChecksumEntry& l = m_localSums[i];
-        if (l.frame == r.frame && l.checksum != r.checksum && m_desyncFrame < 0)
+        if (l.frame == r.frame && l.checksum != r.checksum)
         {
-            m_desyncFrame = r.frame;
-            fprintf(stderr, "[netplay] DESYNC at frame %d: local %08X, remote %08X\n",
-                    r.frame, l.checksum, r.checksum);
-            DumpDesync(r.frame, r.checksum);
+            if (m_desyncFrame < 0)
+            {
+                m_desyncFrame = r.frame;
+                fprintf(stderr, "[netplay] DESYNC at frame %d: local %08X, remote %08X\n",
+                        r.frame, l.checksum, r.checksum);
+                DumpDesync(r.frame, r.checksum);
+            }
+            /* Ask again at every check that still differs: a desync found while the last
+               repair's cooldown ran used to wait for the next goal to be put right. */
             RequestRecoveryStop(r.frame);
         }
         r.frame = -1;

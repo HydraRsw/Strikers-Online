@@ -63,7 +63,7 @@ extern "C" {
        v4: the host sends its starting game state; the guest loads it.
        v5: resync with countdown whenever play resumes (goals, replays, pause).
        Both players need the same build. */
-#define NETPLAY_PROTOCOL_VERSION    12
+#define NETPLAY_PROTOCOL_VERSION    13   /* 13: goal nets no longer follow the camera */
 
 /* ------------------------------------------------------------------------ */
 /*  Input packet                                                             */
